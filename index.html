@@ -7,9 +7,11 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <style>
@@ -43,7 +45,7 @@
     #photo-preview, #voice-preview-wrap { margin-top:8px; display:none; }
     #photo-img { width:100%; border-radius:12px; max-height:130px; object-fit:cover; }
     #voice-status { font-size:12px; color:var(--muted); margin-top:6px; display:none; }
-    #status { position:fixed; top:34%; left:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:300; letter-spacing:2.5px; color:rgba(255,255,255,0.75); opacity:0; z-index:15; pointer-events:none; transition:opacity 2s ease; text-align:center; text-shadow:0 0 20px rgba(255,255,255,0.3); }
+    #status { position:fixed; top:32%; left:50%; transform:translate(-50%,-50%); font-size:18px; font-weight:300; letter-spacing:3.5px; color:rgba(255,255,255,0.88); opacity:0; z-index:15; pointer-events:none; transition:opacity 2.4s ease; text-align:center; text-shadow:0 0 30px rgba(255,240,200,0.55), 0 0 60px rgba(180,200,255,0.25); }
     #card { position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(160%); width:min(92vw,320px); max-height:70vh; overflow-y:auto; padding:16px; z-index:20; transition:transform 0.9s cubic-bezier(0.22,1,0.36,1); }
     #card.show { transform:translateX(-50%) translateY(0); }
     .card-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
@@ -134,7 +136,7 @@
     <div class="stat-item">👤 <span class="num" id="stat-users">0</span></div>
   </div>
   <div class="layer">
-    <div id="form" class="glass">
+    <div id="form" class="glass hide">
       <button class="form-close" id="form-close">×</button>
       <div class="logo">Omnium</div>
       <div class="tag">Вечная галактика</div>
@@ -233,16 +235,134 @@
     let flyer = null, flyerLight = null, starMeshes = [], finalStar = null, finalGlow = null;
 
     // ============================================================
-    // АУДИО (заглушки, можно оставить как в оригинале)
+    // АУДИО — кинематографичный процедурный саундскейп
     // ============================================================
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    let audioCtx = null, ambientNodes = null, lastMoveSound = 0;
-    function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
-    function playLaunchSound() { /* TODO: добавить звук */ }
-    function playBirthSound() { /* TODO: добавить звук */ }
-    function startAmbient() { /* TODO: добавить звук */ }
-    function stopAmbient() { /* TODO: добавить звук */ }
-    function playMoveSound() { /* TODO: добавить звук */ }
+    let audioCtx = null, ambientNodes = null, lastMoveSound = 0, masterGain = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioCtx();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.7;
+        masterGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type, attack, sustain, release, volume = 0.15, detune = 0) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.detune.value = detune;
+      filter.type = 'lowpass';
+      filter.frequency.value = freq * 4;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(volume, now + attack);
+      gain.gain.linearRampToValueAtTime(volume * 0.7, now + attack + sustain);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + attack + sustain + release);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain || audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + attack + sustain + release + 0.1);
+    }
+
+    function playNoise(duration, volume = 0.08, filterFreq = 800) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const bufferSize = audioCtx.sampleRate * duration;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = filterFreq;
+      filter.Q.value = 0.8;
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain || audioCtx.destination);
+      noise.start(now);
+    }
+
+    function playLaunchSound() {
+      initAudio();
+      // Глубокий whoosh + нарастающий тон
+      playNoise(2.8, 0.12, 400);
+      playTone(55, 'sine', 0.4, 1.8, 1.5, 0.18);
+      playTone(110, 'sine', 0.6, 1.5, 1.2, 0.09, 12);
+      setTimeout(() => {
+        playTone(220, 'triangle', 0.3, 0.8, 1.5, 0.07);
+        playNoise(1.5, 0.06, 1200);
+      }, 900);
+    }
+
+    function playBirthSound() {
+      initAudio();
+      // Эпичный «рождение звезды»
+      playNoise(0.6, 0.22, 2000);
+      playTone(130, 'sine', 0.02, 0.15, 2.2, 0.25);
+      playTone(260, 'sine', 0.05, 0.2, 2.0, 0.18);
+      playTone(390, 'triangle', 0.08, 0.3, 2.5, 0.12);
+      playTone(520, 'sine', 0.1, 0.4, 3.0, 0.08);
+      // Высокий «колокольчик» после
+      setTimeout(() => {
+        playTone(880, 'sine', 0.01, 0.1, 1.8, 0.1);
+        playTone(1320, 'sine', 0.02, 0.08, 2.2, 0.06);
+      }, 180);
+    }
+
+    function startAmbient() {
+      initAudio();
+      if (ambientNodes) return;
+      const now = audioCtx.currentTime;
+      // Низкий космический дрон
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const osc3 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      osc1.type = 'sine'; osc1.frequency.value = 42;
+      osc2.type = 'sine'; osc2.frequency.value = 63; osc2.detune.value = 7;
+      osc3.type = 'triangle'; osc3.frequency.value = 84; osc3.detune.value = -5;
+      filter.type = 'lowpass'; filter.frequency.value = 180;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.045, now + 4);
+      osc1.connect(filter); osc2.connect(filter); osc3.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain || audioCtx.destination);
+      osc1.start(now); osc2.start(now); osc3.start(now);
+      ambientNodes = { osc1, osc2, osc3, gain };
+    }
+
+    function stopAmbient() {
+      if (!ambientNodes || !audioCtx) return;
+      const now = audioCtx.currentTime;
+      ambientNodes.gain.gain.linearRampToValueAtTime(0.001, now + 2.5);
+      setTimeout(() => {
+        try {
+          ambientNodes.osc1.stop();
+          ambientNodes.osc2.stop();
+          ambientNodes.osc3.stop();
+        } catch(e) {}
+        ambientNodes = null;
+      }, 2600);
+    }
+
+    function playMoveSound() {
+      if (!audioCtx || performance.now() - lastMoveSound < 180) return;
+      lastMoveSound = performance.now();
+      playTone(180 + Math.random() * 80, 'sine', 0.01, 0.02, 0.15, 0.015);
+    }
 
     // ============================================================
     // СОЗВЕЗДИЯ
@@ -289,69 +409,98 @@
     // ============================================================
     function initScene() {
       scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x02040a, 0.0007);
+      // Более глубокий космический туман
+      scene.fog = new THREE.FogExp2(0x010208, 0.00115);
 
-      camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 6000);
-      camera.position.set(0, 4, 38);
+      // Чуть более широкий кинематографичный угол
+      camera = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 8000);
+      camera.position.set(0, 6, 42);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance', alpha: false });
       renderer.setSize(innerWidth, innerHeight);
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      renderer.setClearColor(0x02040a);
+      renderer.setClearColor(0x010208);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      renderer.toneMappingExposure = 0.92; // чуть темнее и киношнее
       document.getElementById('canvas').appendChild(renderer.domElement);
 
-      // ===== BLOOM =====
-      if (typeof THREE.LuminosityHighPassShader === 'undefined') {
-        console.error('LuminosityHighPassShader не загружен!');
-        return;
+      // ===== BLOOM — мягкий, кинематографичный =====
+      try {
+        if (typeof THREE.EffectComposer !== 'undefined' &&
+            typeof THREE.RenderPass !== 'undefined' &&
+            typeof THREE.UnrealBloomPass !== 'undefined' &&
+            typeof THREE.LuminosityHighPassShader !== 'undefined' &&
+            typeof THREE.CopyShader !== 'undefined') {
+          const renderScene = new THREE.RenderPass(scene, camera);
+          const bloomPass = new THREE.UnrealBloomPass(
+            new THREE.Vector2(innerWidth, innerHeight),
+            0.55,   // strength — сильно снизили
+            0.65,   // radius
+            0.82    // threshold — светит только яркое
+          );
+          bloomPass.threshold = 0.82;
+          bloomPass.strength = 0.55;
+          bloomPass.radius = 0.7;
+          composer = new THREE.EffectComposer(renderer);
+          composer.addPass(renderScene);
+          composer.addPass(bloomPass);
+          console.log('Bloom включён (кинематографичный)');
+        } else {
+          console.warn('Bloom-скрипты не полностью загружены — работаем без постпроцессинга');
+          composer = null;
+        }
+      } catch (err) {
+        console.warn('Bloom не удалось инициализировать:', err);
+        composer = null;
       }
-      const renderScene = new THREE.RenderPass(scene, camera);
-      const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.4, 0.85);
-      bloomPass.threshold = 0.1;
-      bloomPass.strength = 0.8;
-      bloomPass.radius = 0.5;
-      composer = new THREE.EffectComposer(renderer);
-      composer.addPass(renderScene);
-      composer.addPass(bloomPass);
 
       // ===== КОНТРОЛЫ =====
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.minDistance = 8;
-      controls.maxDistance = 250;
+      controls.minDistance = 9;
+      controls.maxDistance = 320;
       controls.enablePan = false;
       controls.enabled = false;
-      controls.target.set(0, 0, 0);
+      controls.target.set(0, -2, 0);
+      controls.rotateSpeed = 0.55;
+      controls.zoomSpeed = 0.8;
       controls.addEventListener('change', () => { if (controls.enabled) playMoveSound(); });
 
-      // ===== ЗВЁЗДЫ (мерцающие) =====
-      function createStarField(count, sizeRange, spread) {
+      // ===== ЗВЁЗДЫ (кинематографичные, многослойные) =====
+      function createStarField(count, sizeRange, spread, brightness = 1) {
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
         const colors = new Float32Array(count * 3);
         const sizes = new Float32Array(count);
         for (let i = 0; i < count; i++) {
-          const r = 100 + Math.random() * spread;
+          const r = 80 + Math.random() * spread;
           const theta = Math.random() * Math.PI * 2;
           const phi = Math.acos(2 * Math.random() - 1);
           positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
-          positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta) * 0.6;
+          positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta) * 0.55;
           positions[i*3+2] = r * Math.cos(phi);
-          const c = new THREE.Color().setHSL(0.6 + Math.random()*0.3, 0.5, 0.5 + Math.random()*0.5);
-          colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+
+          // Более естественные цвета звёзд (холодные + тёплые)
+          const hue = Math.random() < 0.75
+            ? 0.55 + Math.random() * 0.18   // сине-белые
+            : 0.08 + Math.random() * 0.08;  // тёплые
+          const sat = 0.25 + Math.random() * 0.45;
+          const light = 0.55 + Math.random() * 0.4;
+          const c = new THREE.Color().setHSL(hue, sat, light);
+          colors[i*3] = c.r * brightness;
+          colors[i*3+1] = c.g * brightness;
+          colors[i*3+2] = c.b * brightness;
           sizes[i] = sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0]);
         }
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
         const mat = new THREE.PointsMaterial({
-          size: 1.2,
+          size: 1.4,
           vertexColors: true,
           transparent: true,
-          opacity: 0.9,
+          opacity: 0.95,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
           sizeAttenuation: true,
@@ -361,8 +510,8 @@
             const ctx = c.getContext('2d');
             const g = ctx.createRadialGradient(32,32,0,32,32,32);
             g.addColorStop(0, 'rgba(255,255,255,1)');
-            g.addColorStop(0.2, 'rgba(255,255,255,0.8)');
-            g.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+            g.addColorStop(0.15, 'rgba(255,255,255,0.85)');
+            g.addColorStop(0.4, 'rgba(255,255,255,0.25)');
             g.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = g;
             ctx.fillRect(0,0,64,64);
@@ -373,11 +522,12 @@
         points.userData = { sizes: sizes, baseSizes: sizes.slice() };
         return points;
       }
-      const starField1 = createStarField(8000, [0.5,2.0], 800);
+      // Три слоя для глубины
+      const starField1 = createStarField(12000, [0.4, 1.6], 1100, 0.85); // дальние
       scene.add(starField1);
-      const starField2 = createStarField(3000, [1.5,4.0], 500);
+      const starField2 = createStarField(4000, [1.2, 3.2], 650, 1.0);   // средние
       scene.add(starField2);
-      const starField3 = createStarField(1000, [3.0,7.0], 300);
+      const starField3 = createStarField(900, [2.8, 6.5], 380, 1.15);    // яркие близкие
       scene.add(starField3);
 
       // ===== ТУМАННОСТИ =====
@@ -405,10 +555,13 @@
         sprite.scale.set(size, size, 1);
         return sprite;
       }
-      scene.add(createNebula('108,50,180', 250, {x:-120,y:40,z:-200}, 0.08));
-      scene.add(createNebula('30,80,200', 300, {x:150,y:-60,z:-250}, 0.06));
-      scene.add(createNebula('200,80,40', 180, {x:-80,y:-100,z:-150}, 0.05));
-      scene.add(createNebula('40,200,180', 220, {x:100,y:80,z:-180}, 0.07));
+      // Более глубокие и мягкие туманности
+      scene.add(createNebula('90,40,160', 320, {x:-140, y:50, z:-220}, 0.11));
+      scene.add(createNebula('20,60,180', 380, {x:170, y:-70, z:-280}, 0.09));
+      scene.add(createNebula('180,70,30', 240, {x:-90, y:-110, z:-170}, 0.07));
+      scene.add(createNebula('30,160,150', 280, {x:110, y:90, z:-200}, 0.08));
+      scene.add(createNebula('140,50,100', 200, {x:40, y:-40, z:-320}, 0.06));
+      scene.add(createNebula('50,30,120', 450, {x:-60, y:20, z:-380}, 0.05));
 
       // ===== ЗЕМЛЯ =====
       const loader = new THREE.TextureLoader();
@@ -420,23 +573,24 @@
       const cloudMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png');
       const nightMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/night_lights_4k.png');
       const earthMat = new THREE.MeshPhongMaterial({
-        map: earthMap, bumpMap, bumpScale: 0.04, specularMap: specMap,
-        specular: new THREE.Color(0x333344), shininess: 20,
-        emissiveMap: nightMap, emissive: new THREE.Color(0xffdd99), emissiveIntensity: 0.9
+        map: earthMap, bumpMap, bumpScale: 0.055, specularMap: specMap,
+        specular: new THREE.Color(0x222233), shininess: 25,
+        emissiveMap: nightMap, emissive: new THREE.Color(0xffcc88), emissiveIntensity: 1.15
       });
       const earth = new THREE.Mesh(new THREE.SphereGeometry(4.0, 128, 128), earthMat);
       earth.userData.isEarth = true;
       earthGroup.add(earth);
       const cloudMat = new THREE.MeshPhongMaterial({
-        map: cloudMap, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending
+        map: cloudMap, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending
       });
-      const clouds = new THREE.Mesh(new THREE.SphereGeometry(4.05, 64, 64), cloudMat);
+      const clouds = new THREE.Mesh(new THREE.SphereGeometry(4.06, 64, 64), cloudMat);
       clouds.userData.isEarth = true;
       earthGroup.add(clouds);
+      // Более красивая атмосфера
       const atmoMat = new THREE.MeshBasicMaterial({
-        color: 0x88bbff, transparent: true, opacity: 0.2, side: THREE.BackSide, depthWrite: false
+        color: 0x6ea8ff, transparent: true, opacity: 0.28, side: THREE.BackSide, depthWrite: false
       });
-      const atmo = new THREE.Mesh(new THREE.SphereGeometry(4.35, 64, 64), atmoMat);
+      const atmo = new THREE.Mesh(new THREE.SphereGeometry(4.42, 64, 64), atmoMat);
       atmo.userData.isEarth = true;
       earthGroup.add(atmo);
       const clickTarget = new THREE.Mesh(
@@ -489,14 +643,19 @@
         }
       });
 
-      // ===== ОСВЕЩЕНИЕ =====
-      scene.add(new THREE.AmbientLight(0x0a1020, 0.3));
-      const sunLight = new THREE.DirectionalLight(0xfff5e6, 2.0);
-      sunLight.position.set(25, 12, 30);
+      // ===== ОСВЕЩЕНИЕ (кинематографичное) =====
+      scene.add(new THREE.AmbientLight(0x070b14, 0.22));
+      const sunLight = new THREE.DirectionalLight(0xfff0d8, 2.4);
+      sunLight.position.set(32, 14, 38);
       scene.add(sunLight);
-      const rimLight = new THREE.DirectionalLight(0x446688, 0.3);
-      rimLight.position.set(-20, -10, -30);
+      // Холодный rim light сзади
+      const rimLight = new THREE.DirectionalLight(0x3a5a8a, 0.55);
+      rimLight.position.set(-28, -8, -40);
       scene.add(rimLight);
+      // Лёгкий fill
+      const fillLight = new THREE.DirectionalLight(0x1a2a4a, 0.25);
+      fillLight.position.set(-15, 20, 10);
+      scene.add(fillLight);
 
       // ===== ЛЕТАЮЩИЙ ОБЪЕКТ =====
       flyer = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshBasicMaterial({ color:0xffffff }));
@@ -630,7 +789,11 @@
         if (controls && controls.enabled) controls.update();
         else if (!isFlying && camera) camera.position.x = Math.sin(time * 0.12) * 0.8;
 
-        if (composer) composer.render();
+        if (composer) {
+          composer.render();
+        } else if (renderer && scene && camera) {
+          renderer.render(scene, camera);
+        }
       }
       loop();
 
@@ -691,14 +854,14 @@
       if (document.getElementById('card').classList.contains('show')) closeCard();
       if (!controls || !camera) { openForm(); return; }
 
-      const earthViewPos = new THREE.Vector3(0, -3, 16);
+      const earthViewPos = new THREE.Vector3(0, -2.5, 18);
       const dist = camera.position.distanceTo(earthViewPos);
-      if (dist < 4) { openForm(); return; }
+      if (dist < 5) { openForm(); return; }
 
       controls.enabled = false;
       isFlying = true;
-      gsap.to(camera.position, { x:0, y:-3, z:16, duration:2.2, ease:'power2.inOut', onComplete:()=>{ isFlying=false; openForm(); } });
-      gsap.to(controls.target, { x:0, y:-8, z:0, duration:2.2, ease:'power2.inOut' });
+      gsap.to(camera.position, { x:0, y:-2.5, z:18, duration:2.6, ease:'power2.inOut', onComplete:()=>{ isFlying=false; openForm(); } });
+      gsap.to(controls.target, { x:0, y:-8, z:0, duration:2.6, ease:'power2.inOut' });
     }
 
     function flyToStar(star, fromDeepLink=false) {
@@ -730,127 +893,189 @@
       }
     }
 
-    function screenFlash(peak=0.85, duration=0.9) {
+    function screenFlash(peak=0.95, duration=1.4) {
       const el = document.getElementById('flash');
-      gsap.fromTo(el, { opacity:0 }, { opacity:peak, duration:duration*0.2, ease:'power2.out',
-        onComplete:() => { gsap.to(el, { opacity:0, duration:duration*0.8, ease:'power2.in' }); }
+      gsap.fromTo(el, { opacity:0 }, {
+        opacity: peak, duration: duration * 0.12, ease: 'power3.out',
+        onComplete: () => gsap.to(el, { opacity: 0, duration: duration * 0.88, ease: 'power2.in' })
       });
     }
 
     function createBurst(position) {
-      const count = 120;
-      const geo = new THREE.BufferGeometry();
-      const pos = new Float32Array(count * 3);
-      const vel = [];
-      for (let i=0; i<count; i++) {
-        pos[i*3] = position.x;
-        pos[i*3+1] = position.y;
-        pos[i*3+2] = position.z;
-        const dir = new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)).normalize().multiplyScalar(0.5 + Math.random() * 3);
-        vel.push(dir);
-      }
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      const mat = new THREE.PointsMaterial({
-        size: 2.8,
-        map: (() => {
-          const c = document.createElement('canvas');
-          c.width=64; c.height=64; const ctx=c.getContext('2d');
-          const g=ctx.createRadialGradient(32,32,0,32,32,32);
-          g.addColorStop(0,'rgba(255,255,255,1)');
-          g.addColorStop(0.2,'rgba(255,255,255,0.9)');
-          g.addColorStop(0.6,'rgba(255,200,100,0.4)');
-          g.addColorStop(1,'rgba(255,255,255,0)');
-          ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
-          return new THREE.CanvasTexture(c);
-        })(),
-        transparent: true, opacity:1, depthWrite:false, blending:THREE.AdditiveBlending, sizeAttenuation:true
-      });
-      const burst = new THREE.Points(geo, mat);
-      scene.add(burst);
-      const start = performance.now();
-      function animateBurst() {
-        const elapsed = (performance.now() - start) / 1000;
-        if (elapsed > 2.5) { scene.remove(burst); return; }
-        const p = burst.geometry.attributes.position.array;
-        for (let i=0; i<count; i++) {
-          p[i*3] += vel[i].x * 0.4;
-          p[i*3+1] += vel[i].y * 0.4;
-          p[i*3+2] += vel[i].z * 0.4;
+      // Два слоя частиц для эпичности
+      function makeLayer(count, speedMul, sizeMul, life) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        const vel = [];
+        for (let i = 0; i < count; i++) {
+          pos[i*3] = position.x;
+          pos[i*3+1] = position.y;
+          pos[i*3+2] = position.z;
+          const dir = new THREE.Vector3(
+            (Math.random()-0.5),
+            (Math.random()-0.5),
+            (Math.random()-0.5)
+          ).normalize().multiplyScalar((0.8 + Math.random() * 4.5) * speedMul);
+          vel.push(dir);
         }
-        burst.geometry.attributes.position.needsUpdate = true;
-        mat.opacity = Math.max(0, 1 - elapsed / 2.5);
-        requestAnimationFrame(animateBurst);
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({
+          size: 3.2 * sizeMul,
+          map: (() => {
+            const c = document.createElement('canvas');
+            c.width = 64; c.height = 64;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(32,32,0,32,32,32);
+            g.addColorStop(0, 'rgba(255,255,255,1)');
+            g.addColorStop(0.15, 'rgba(255,250,230,0.95)');
+            g.addColorStop(0.4, 'rgba(255,200,120,0.5)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0,0,64,64);
+            return new THREE.CanvasTexture(c);
+          })(),
+          transparent: true, opacity: 1, depthWrite: false,
+          blending: THREE.AdditiveBlending, sizeAttenuation: true
+        });
+        const burst = new THREE.Points(geo, mat);
+        scene.add(burst);
+        const start = performance.now();
+        function animateBurst() {
+          const elapsed = (performance.now() - start) / 1000;
+          if (elapsed > life) { scene.remove(burst); return; }
+          const p = burst.geometry.attributes.position.array;
+          for (let i = 0; i < count; i++) {
+            p[i*3]   += vel[i].x * 0.38;
+            p[i*3+1] += vel[i].y * 0.38;
+            p[i*3+2] += vel[i].z * 0.38;
+            vel[i].multiplyScalar(0.985); // замедление
+          }
+          burst.geometry.attributes.position.needsUpdate = true;
+          mat.opacity = Math.max(0, 1 - elapsed / life);
+          mat.size = 3.2 * sizeMul * (1 + elapsed * 0.3);
+          requestAnimationFrame(animateBurst);
+        }
+        animateBurst();
       }
-      animateBurst();
+      makeLayer(180, 1.0, 1.0, 3.2);   // основной взрыв
+      makeLayer(90,  1.6, 0.55, 2.4);  // быстрые искры
+      makeLayer(60,  0.55, 1.8, 4.0);  // медленное свечение
     }
 
     function launch(name, message, constellation, starData) {
       isFlying = true;
       playLaunchSound();
       const status = document.getElementById('status');
-      status.innerHTML = `${name}<br><span style="font-size:12px;opacity:0.6">${constellation.name}</span>`;
+      status.innerHTML = `${name}<br><span style="font-size:13px;opacity:0.65;letter-spacing:2px">${constellation.name}</span>`;
       status.style.opacity = '1';
       const target = starData.position;
 
       flyer.position.set(0, -3.2, 0);
-      flyer.scale.setScalar(0.2);
+      flyer.scale.setScalar(0.15);
       flyer.visible = true;
-      flyerLight.intensity = 0.5;
+      flyerLight.intensity = 0.8;
       flyerLight.position.copy(flyer.position);
+      flyerLight.distance = 120;
 
-      gsap.to(camera.position, { z:18, y:-3, duration:3.2, ease:'power2.inOut' });
-      gsap.to(controls.target, { x:0, y:-8, z:0, duration:3.2, ease:'power2.inOut' });
+      // Камера сначала медленно приближается к Земле
+      gsap.to(camera.position, { z: 17, y: -2.8, duration: 3.6, ease: 'power2.inOut' });
+      gsap.to(controls.target, { x: 0, y: -8, z: 0, duration: 3.6, ease: 'power2.inOut' });
 
       const tl = gsap.timeline({ onComplete: () => finish(name, message, constellation, target, starData) });
-      tl.to(flyer.scale, { x:1.6, y:1.6, z:1.6, duration:2.2, ease:'power2.out' }, 0.8);
-      tl.to(flyer.position, { y:6, duration:3.2, ease:'power2.inOut' }, 0.9);
-      tl.to(flyer.position, { x:target.x, y:target.y, z:target.z, duration:8.0, ease:'power3.in' }, 3.8);
-      tl.to(camera.position, { x:target.x*0.4, y:target.y*0.3+12, z:target.z*0.4+38, duration:8.0, ease:'power3.in' }, 3.8);
-      tl.to(flyerLight, { intensity:10, duration:4 }, 5);
-      tl.to(flyer.scale, { x:2.8, y:2.8, z:2.8, duration:3 }, 7);
-      tl.to(status, { opacity:0, duration:2.2 }, 9);
+      // Набор энергии
+      tl.to(flyer.scale, { x: 2.2, y: 2.2, z: 2.2, duration: 2.8, ease: 'power2.out' }, 0.9);
+      tl.to(flyerLight, { intensity: 4, duration: 2.5 }, 1.0);
+      tl.to(flyer.position, { y: 7, duration: 3.5, ease: 'power2.inOut' }, 1.1);
+      // Полёт к точке
+      tl.to(flyer.position, { x: target.x, y: target.y, z: target.z, duration: 9.5, ease: 'power3.in' }, 4.2);
+      tl.to(camera.position, {
+        x: target.x * 0.38,
+        y: target.y * 0.28 + 14,
+        z: target.z * 0.38 + 42,
+        duration: 9.5,
+        ease: 'power3.in'
+      }, 4.2);
+      tl.to(flyerLight, { intensity: 18, duration: 5 }, 6);
+      tl.to(flyer.scale, { x: 4.2, y: 4.2, z: 4.2, duration: 3.5 }, 8);
+      tl.to(status, { opacity: 0, duration: 2.5 }, 10.5);
     }
 
     function finish(name, message, constellation, target, starData) {
       playBirthSound();
       isFlying = false;
       const pos = new THREE.Vector3(target.x, target.y, target.z);
-      screenFlash(0.9, 1.1);
+      screenFlash(0.98, 1.6);
       createBurst(pos);
 
-      finalStar = new THREE.Mesh(new THREE.SphereGeometry(0.45, 32, 32), new THREE.MeshBasicMaterial({ color:0xffffff }));
+      // Ядро звезды
+      finalStar = new THREE.Mesh(
+        new THREE.SphereGeometry(0.55, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
       finalStar.position.copy(pos);
       scene.add(finalStar);
 
-      finalGlow = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false }));
+      // Основное свечение
+      finalGlow = new THREE.Mesh(
+        new THREE.SphereGeometry(2.2, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0xfff5e0, transparent: true, opacity: 0.55, depthWrite: false })
+      );
       finalGlow.position.copy(pos);
       scene.add(finalGlow);
 
-      const glow2 = new THREE.Mesh(new THREE.SphereGeometry(3.0, 32, 32), new THREE.MeshBasicMaterial({ color:0xaaccff, transparent:true, opacity:0.15, depthWrite:false }));
+      // Внешнее голубое свечение
+      const glow2 = new THREE.Mesh(
+        new THREE.SphereGeometry(4.5, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.22, depthWrite: false })
+      );
       glow2.position.copy(pos);
       scene.add(glow2);
 
-      const light = new THREE.PointLight(0xffffff, 15, 150);
+      // Ещё один широкий ореол
+      const glow3 = new THREE.Mesh(
+        new THREE.SphereGeometry(8, 32, 32),
+        new THREE.MeshBasicMaterial({ color: 0x6688cc, transparent: true, opacity: 0.08, depthWrite: false })
+      );
+      glow3.position.copy(pos);
+      scene.add(glow3);
+
+      const light = new THREE.PointLight(0xfff8ee, 28, 220);
       light.position.copy(pos);
       scene.add(light);
 
-      finalStar.scale.set(0.1,0.1,0.1);
-      finalGlow.scale.set(0.1,0.1,0.1);
-      gsap.to(finalStar.scale, { x:1.8, y:1.8, z:1.8, duration:0.6, ease:'power3.out' });
-      gsap.to(finalStar.scale, { x:1.2, y:1.2, z:1.2, duration:1.4, delay:0.6, ease:'power2.inOut' });
-      gsap.to(finalGlow.scale, { x:1.5, y:1.5, z:1.5, duration:0.8, ease:'power2.out' });
-      gsap.to(finalGlow, { opacity:0.2, duration:2, delay:0.5 });
-      gsap.to(glow2.scale, { x:1.6, y:1.6, z:1.6, duration:1.2, ease:'power2.out' });
-      gsap.to(glow2, { opacity:0.08, duration:2.5, delay:0.3 });
-      gsap.to(light, { intensity:8, duration:2, delay:0.4 });
+      // Анимация появления
+      finalStar.scale.set(0.05, 0.05, 0.05);
+      finalGlow.scale.set(0.05, 0.05, 0.05);
+      glow2.scale.set(0.1, 0.1, 0.1);
+      glow3.scale.set(0.1, 0.1, 0.1);
 
-      gsap.to(finalStar.scale, { x:1.25, y:1.25, z:1.25, duration:4, yoyo:true, repeat:-1, ease:'sine.inOut', delay:2.5 });
+      gsap.to(finalStar.scale, { x: 2.1, y: 2.1, z: 2.1, duration: 0.55, ease: 'power3.out' });
+      gsap.to(finalStar.scale, { x: 1.35, y: 1.35, z: 1.35, duration: 1.6, delay: 0.55, ease: 'power2.inOut' });
+      gsap.to(finalGlow.scale, { x: 1.8, y: 1.8, z: 1.8, duration: 0.9, ease: 'power2.out' });
+      gsap.to(finalGlow, { opacity: 0.28, duration: 2.2, delay: 0.6 });
+      gsap.to(glow2.scale, { x: 1.7, y: 1.7, z: 1.7, duration: 1.4, ease: 'power2.out' });
+      gsap.to(glow2, { opacity: 0.12, duration: 3, delay: 0.4 });
+      gsap.to(glow3.scale, { x: 1.5, y: 1.5, z: 1.5, duration: 2.2, ease: 'power2.out' });
+      gsap.to(glow3, { opacity: 0.05, duration: 3.5, delay: 0.5 });
+      gsap.to(light, { intensity: 12, duration: 2.5, delay: 0.5 });
 
-      gsap.to(camera.position, { x:camera.position.x+(Math.random()-0.5)*2, y:camera.position.y+(Math.random()-0.5)*1.5, duration:0.4, yoyo:true, repeat:1, ease:'power2.inOut' });
+      // Пульсация
+      gsap.to(finalStar.scale, {
+        x: 1.45, y: 1.45, z: 1.45,
+        duration: 3.5, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 2.8
+      });
+
+      // Сильный shake камеры
+      gsap.to(camera.position, {
+        x: camera.position.x + (Math.random() - 0.5) * 3.5,
+        y: camera.position.y + (Math.random() - 0.5) * 2.5,
+        duration: 0.35, yoyo: true, repeat: 3, ease: 'power2.inOut'
+      });
 
       flyer.visible = false;
+      flyerLight.intensity = 0;
 
-      starMeshes.push({ data:starData, mesh:finalStar, glow:finalGlow });
+      starMeshes.push({ data: starData, mesh: finalStar, glow: finalGlow });
       currentStarData = starData;
       photoDataUrl = null; voiceDataUrl = null;
       document.getElementById('photo-preview').style.display = 'none';
@@ -862,13 +1087,13 @@
       controls.enabled = true;
       startAmbient();
       document.getElementById('hint').style.opacity = '1';
-      setTimeout(() => document.getElementById('hint').style.opacity = '0', 5000);
+      setTimeout(() => document.getElementById('hint').style.opacity = '0', 6000);
       fillCard(starData);
       setTimeout(() => {
         document.getElementById('card').classList.add('show');
         document.getElementById('mybtn').classList.add('show');
         document.getElementById('createbtn').classList.add('show');
-      }, 1400);
+      }, 1800);
     }
 
     // ============================================================
@@ -948,7 +1173,7 @@
       introStep++;
       if (introStep >= 3) {
         document.getElementById('intro').classList.add('hide');
-        localStorage.setItem('omnium_v3', '1');
+        try { localStorage.setItem('omnium_v3', '1'); } catch(e) {}
         document.getElementById('hint').style.opacity = '1';
         setTimeout(() => document.getElementById('hint').style.opacity = '0', 5000);
         initScene();
@@ -962,7 +1187,10 @@
       document.getElementById('s3').classList.toggle('on', introStep === 2);
       if (introStep === 2) document.getElementById('inext').textContent = 'Начать';
     };
-    if (localStorage.getItem('omnium_v3')) {
+    // Безопасная проверка localStorage (в песочнице / Telegram WebView может быть заблокирован)
+    let skipIntro = false;
+    try { skipIntro = !!localStorage.getItem('omnium_v3'); } catch(e) { skipIntro = false; }
+    if (skipIntro) {
       document.getElementById('intro').classList.add('hide');
       initScene();
       initApp();
