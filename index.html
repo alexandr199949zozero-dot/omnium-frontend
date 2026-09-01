@@ -7,14 +7,9 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <style>
+    /* ===== КИНЕМАТОГРАФИЧНЫЙ СТИЛЬ (ОТ GROK) ===== */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     :root { --bg: #03050a; --accent: #c4b18a; --text: rgba(255,255,255,0.88); --muted: rgba(255,255,255,0.38); --line: rgba(255,255,255,0.07); }
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -42,16 +37,16 @@
     .btn.secondary { background:transparent; border-color:rgba(255,255,255,0.12); color:var(--muted); margin-top:0; }
     .hint { margin-top:12px; font-size:11px; color:rgba(255,255,255,0.22); }
     .limit-msg { margin-top:12px; font-size:12px; color:rgba(196,177,138,0.7); line-height:1.4; display:none; }
-    #photo-preview, #voice-preview-wrap { margin-top:8px; display:none; }
+    #photo-preview { margin-top:8px; display:none; }
     #photo-img { width:100%; border-radius:12px; max-height:130px; object-fit:cover; }
-    #voice-status { font-size:12px; color:var(--muted); margin-top:6px; display:none; }
     #status { position:fixed; top:32%; left:50%; transform:translate(-50%,-50%); font-size:18px; font-weight:300; letter-spacing:3.5px; color:rgba(255,255,255,0.88); opacity:0; z-index:15; pointer-events:none; transition:opacity 2.4s ease; text-align:center; text-shadow:0 0 30px rgba(255,240,200,0.55), 0 0 60px rgba(180,200,255,0.25); }
     #card { position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(160%); width:min(92vw,320px); max-height:70vh; overflow-y:auto; padding:16px; z-index:20; transition:transform 0.9s cubic-bezier(0.22,1,0.36,1); }
     #card.show { transform:translateX(-50%) translateY(0); }
     .card-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
     .card-close { width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:rgba(255,255,255,0.6); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; }
     .c-name { font-size:16px; font-weight:500; color:#fff; }
-    .c-const { font-size:11px; color:var(--accent); margin-bottom:8px; }
+    .c-const { font-size:11px; color:var(--accent); margin-bottom:4px; }
+    .c-extra { font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:300; }
     .c-msg { font-size:13px; font-weight:300; color:var(--muted); line-height:1.5; margin-bottom:10px; }
     .c-msg .mention { color:var(--accent); font-weight:500; background:rgba(196,177,138,0.1); padding:0 4px; border-radius:4px; }
     .c-meta { display:flex; justify-content:space-between; font-size:11px; color:rgba(255,255,255,0.25); margin-bottom:10px; }
@@ -63,7 +58,6 @@
     .reaction-btn span { font-size:11px; opacity:0.6; }
     #card-photo-wrap { display:none; margin-bottom:10px; }
     #card-photo { width:100%; border-radius:12px; max-height:150px; object-fit:cover; }
-    #card-voice-wrap { display:none; margin-bottom:8px; }
     #mystars { position:fixed; inset:0; z-index:30; background:rgba(2,4,10,0.85); display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity 0.4s; }
     #mystars.show { opacity:1; pointer-events:auto; }
     .mystars-panel { width:min(92vw,380px); max-height:80vh; padding:20px; display:flex; flex-direction:column; overflow:hidden; }
@@ -113,6 +107,10 @@
     #stats-bar.show { opacity:1; }
     #stats-bar .stat-item { display:flex; align-items:center; gap:4px; }
     #stats-bar .stat-item .num { color:var(--text); font-weight:600; }
+    .checkbox-wrap { display:flex; align-items:center; gap:10px; margin:8px 0 12px; justify-content:center; font-size:14px; color:var(--muted); }
+    .checkbox-wrap input[type="checkbox"] { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
+    .year-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
+    .year-grid .field { margin-bottom:0; }
     @media (max-width:480px) { .card-row .btn { font-size:11px; padding:8px 6px; min-width:50px; } .reaction-btn { font-size:15px; padding:2px 10px; } #stats-bar { font-size:10px; padding:4px 14px; gap:10px; bottom:60px; } }
   </style>
 </head>
@@ -120,59 +118,90 @@
   <div id="canvas"></div>
   <div id="flash"></div>
   <div class="toast" id="toast"></div>
+
   <div id="intro">
     <div class="glass intro-card">
       <div class="steps"><span class="on" id="s1"></span><span id="s2"></span><span id="s3"></span></div>
       <h2 id="ititle">Omnium</h2>
-      <p id="itext">Зажги звезду в честь человека. Можно добавить фото и голос.</p>
+      <p id="itext">Зажги звезду в честь человека. Можно указать год и остаться анонимным.</p>
       <button class="btn" id="inext" style="margin-top:0">Продолжить</button>
     </div>
   </div>
+
   <button class="top-btn-left" id="createbtn">✦ Зажечь звезду</button>
   <button class="top-btn" id="mybtn">Мои звёзды</button>
+
   <div id="stats-bar">
     <div class="stat-item">⭐ <span class="num" id="stat-stars">0</span></div>
     <div class="stat-item">❤️ <span class="num" id="stat-likes">0</span></div>
     <div class="stat-item">👤 <span class="num" id="stat-users">0</span></div>
   </div>
+
   <div class="layer">
-    <div id="form" class="glass hide">
+    <div id="form" class="glass">
       <button class="form-close" id="form-close">×</button>
       <div class="logo">Omnium</div>
       <div class="tag">Вечная галактика</div>
       <input class="field" id="name" type="text" placeholder="Имя" maxlength="34" autocomplete="off" />
       <textarea class="field" id="msg" placeholder="Послание (можно упомянуть @username)" maxlength="160"></textarea>
+
       <div class="section-title">Фото (необязательно)</div>
       <input type="file" id="photo-input" accept="image/*" style="display:none" />
       <button type="button" class="const-btn" id="photo-btn" style="width:100%">Добавить фото</button>
       <div id="photo-preview"><img id="photo-img" alt="" /><button type="button" class="btn secondary" id="photo-remove" style="margin-top:8px">Убрать фото</button></div>
-      <div class="section-title">Голосовое (необязательно)</div>
-      <button type="button" class="const-btn" id="voice-btn" style="width:100%">Записать голос</button>
-      <div id="voice-status">Идёт запись...</div>
-      <div id="voice-preview-wrap"><audio id="voice-preview" controls style="width:100%;margin-top:6px"></audio><button type="button" class="btn secondary" id="voice-remove" style="margin-top:8px">Убрать голос</button></div>
+
+      <!-- НОВЫЕ ПОЛЯ: ГОД И АНОНИМНОСТЬ -->
+      <div class="section-title">Год события (необязательно)</div>
+      <div class="year-grid">
+        <input class="field" id="year" type="number" placeholder="Например, 2020" min="1900" max="2099" />
+      </div>
+      <div class="checkbox-wrap">
+        <input type="checkbox" id="anonymous" />
+        <label for="anonymous">Анонимно (не показывать моё имя)</label>
+      </div>
+
       <div class="section-title">Выбери созвездие</div>
       <div class="const-grid" id="constgrid"></div>
+
       <button class="btn" id="create">Зажечь звезду</button>
       <div class="limit-msg" id="limitmsg">Сегодня ты уже зажёг звезду.<br>Завтра можно снова.</div>
       <div class="hint">Можно закрыть меню и просто смотреть космос</div>
     </div>
   </div>
+
   <div id="status"></div>
+
   <div id="card" class="glass">
-    <div class="card-head"><div><div class="c-name" id="cname"></div><div class="c-const" id="cconst"></div></div><button class="card-close" id="card-close">×</button></div>
+    <div class="card-head">
+      <div>
+        <div class="c-name" id="cname"></div>
+        <div class="c-const" id="cconst"></div>
+        <div class="c-extra" id="cextra"></div>
+      </div>
+      <button class="card-close" id="card-close">×</button>
+    </div>
     <div id="card-photo-wrap"><img id="card-photo" alt="" /></div>
     <div class="c-msg" id="cmsg"></div>
-    <div id="card-voice-wrap"><button class="btn secondary" id="card-voice-play">Слушать послание</button><audio id="card-voice"></audio></div>
-    <div class="c-meta"><span id="cdate"></span><span id="clikes">0 ❤️</span></div>
+    <div class="c-meta">
+      <span id="cdate"></span>
+      <span id="clikes">0 ❤️</span>
+    </div>
     <div class="reaction-row" id="reaction-row">
       <button class="reaction-btn" data-emoji="❤️">❤️ <span id="r-heart">0</span></button>
       <button class="reaction-btn" data-emoji="🙌">🙌 <span id="r-hands">0</span></button>
       <button class="reaction-btn" data-emoji="😢">😢 <span id="r-sad">0</span></button>
       <button class="reaction-btn" data-emoji="🔥">🔥 <span id="r-fire">0</span></button>
     </div>
-    <div class="card-row"><button class="btn" id="share">Поделиться</button><button class="btn secondary" id="like">Подсветить</button></div>
-    <div class="card-row"><button class="btn secondary" id="tomystars">Мои звёзды</button><button class="btn secondary" id="again">Ещё одна</button></div>
+    <div class="card-row">
+      <button class="btn" id="share">Поделиться</button>
+      <button class="btn secondary" id="like">Подсветить</button>
+    </div>
+    <div class="card-row">
+      <button class="btn secondary" id="tomystars">Мои звёзды</button>
+      <button class="btn secondary" id="again">Ещё одна</button>
+    </div>
   </div>
+
   <div id="mystars">
     <div class="glass mystars-panel">
       <div class="mystars-title">✦ Вселенная звёзд</div>
@@ -182,14 +211,15 @@
       <button class="btn secondary" id="closemystars" style="margin-top:8px">Закрыть</button>
     </div>
   </div>
+
   <div class="cam-hint" id="hint">Тяните · щипок — зум · тап по Земле или ✦</div>
 
   <script>
     // ============================================================
     // КОНФИГ
     // ============================================================
-    const API_URL = 'https://omnium-server.onrender.com/api';
-    const BOT_USERNAME = 'Omniums_bot';
+    const API_URL = 'https://omnium-server.onrender.com/api'; // <-- замени на свой
+    const BOT_USERNAME = 'Omniums_bot'; // <-- замени на своего бота
     const tg = window.Telegram?.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); tg.setHeaderColor('#03050a'); } catch(e) {}
@@ -231,11 +261,11 @@
     const userUsername = user.username || '';
 
     let currentStarData = null, isFlying = false, allStars = [], currentTab = 'all';
-    let controls = null, camera = null, scene = null, renderer = null, composer = null;
+    let controls = null, camera = null, scene = null, renderer = null;
     let flyer = null, flyerLight = null, starMeshes = [], finalStar = null, finalGlow = null;
 
     // ============================================================
-    // АУДИО — кинематографичный процедурный саундскейп
+    // ЗВУКИ (от Grok, полные)
     // ============================================================
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null, ambientNodes = null, lastMoveSound = 0, masterGain = null;
@@ -296,7 +326,6 @@
 
     function playLaunchSound() {
       initAudio();
-      // Глубокий whoosh + нарастающий тон
       playNoise(2.8, 0.12, 400);
       playTone(55, 'sine', 0.4, 1.8, 1.5, 0.18);
       playTone(110, 'sine', 0.6, 1.5, 1.2, 0.09, 12);
@@ -308,13 +337,11 @@
 
     function playBirthSound() {
       initAudio();
-      // Эпичный «рождение звезды»
       playNoise(0.6, 0.22, 2000);
       playTone(130, 'sine', 0.02, 0.15, 2.2, 0.25);
       playTone(260, 'sine', 0.05, 0.2, 2.0, 0.18);
       playTone(390, 'triangle', 0.08, 0.3, 2.5, 0.12);
       playTone(520, 'sine', 0.1, 0.4, 3.0, 0.08);
-      // Высокий «колокольчик» после
       setTimeout(() => {
         playTone(880, 'sine', 0.01, 0.1, 1.8, 0.1);
         playTone(1320, 'sine', 0.02, 0.08, 2.2, 0.06);
@@ -325,7 +352,6 @@
       initAudio();
       if (ambientNodes) return;
       const now = audioCtx.currentTime;
-      // Низкий космический дрон
       const osc1 = audioCtx.createOscillator();
       const osc2 = audioCtx.createOscillator();
       const osc3 = audioCtx.createOscillator();
@@ -386,9 +412,9 @@
     });
 
     // ============================================================
-    // ФОТО / ГОЛОС
+    // ФОТО
     // ============================================================
-    let photoDataUrl = null, voiceDataUrl = null, mediaRecorder = null, voiceChunks = [], isRecording = false;
+    let photoDataUrl = null;
     document.getElementById('photo-btn').onclick = () => document.getElementById('photo-input').click();
     document.getElementById('photo-input').onchange = async (e) => {
       const f = e.target.files[0];
@@ -399,62 +425,24 @@
     };
     document.getElementById('photo-remove').onclick = () => { photoDataUrl = null; document.getElementById('photo-input').value = ''; document.getElementById('photo-preview').style.display = 'none'; };
     function compressImage(file,maxW,q) { return new Promise(res => { const img = new Image(); const url = URL.createObjectURL(file); img.onload = () => { const c = document.createElement('canvas'); let w = img.width, h = img.height; if (w > maxW) { h *= maxW / w; w = maxW; } c.width = w; c.height = h; c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',q)); }; img.src = url; }); }
-    document.getElementById('voice-btn').onclick = () => isRecording ? stopRecording() : startRecording();
-    async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); voiceChunks = []; mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = e => { if (e.data.size) voiceChunks.push(e.data); }; mediaRecorder.onstop = () => { const blob = new Blob(voiceChunks, { type:'audio/webm' }); const r = new FileReader(); r.onloadend = () => { voiceDataUrl = r.result; document.getElementById('voice-preview').src = voiceDataUrl; document.getElementById('voice-preview-wrap').style.display = 'block'; document.getElementById('voice-status').style.display = 'none'; }; r.readAsDataURL(blob); stream.getTracks().forEach(t => t.stop()); }; mediaRecorder.start(); isRecording = true; document.getElementById('voice-btn').textContent = 'Остановить'; document.getElementById('voice-status').style.display = 'block'; } catch { showToast('Нет доступа к микрофону'); } }
-    function stopRecording() { if (mediaRecorder && isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('voice-btn').textContent = 'Записать голос'; document.getElementById('voice-status').style.display = 'none'; } }
-    document.getElementById('voice-remove').onclick = () => { voiceDataUrl = null; document.getElementById('voice-preview-wrap').style.display = 'none'; document.getElementById('voice-preview').src = ''; };
 
     // ============================================================
-    // 3D СЦЕНА (КИНЕМАТОГРАФИЧНАЯ)
+    // 3D СЦЕНА (КИНЕМАТОГРАФИЧНАЯ ОТ GROK)
     // ============================================================
     function initScene() {
       scene = new THREE.Scene();
-      // Более глубокий космический туман
       scene.fog = new THREE.FogExp2(0x010208, 0.00115);
-
-      // Чуть более широкий кинематографичный угол
       camera = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 8000);
       camera.position.set(0, 6, 42);
-
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance', alpha: false });
       renderer.setSize(innerWidth, innerHeight);
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setClearColor(0x010208);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.92; // чуть темнее и киношнее
+      renderer.toneMappingExposure = 0.92;
       document.getElementById('canvas').appendChild(renderer.domElement);
 
-      // ===== BLOOM — мягкий, кинематографичный =====
-      try {
-        if (typeof THREE.EffectComposer !== 'undefined' &&
-            typeof THREE.RenderPass !== 'undefined' &&
-            typeof THREE.UnrealBloomPass !== 'undefined' &&
-            typeof THREE.LuminosityHighPassShader !== 'undefined' &&
-            typeof THREE.CopyShader !== 'undefined') {
-          const renderScene = new THREE.RenderPass(scene, camera);
-          const bloomPass = new THREE.UnrealBloomPass(
-            new THREE.Vector2(innerWidth, innerHeight),
-            0.55,   // strength — сильно снизили
-            0.65,   // radius
-            0.82    // threshold — светит только яркое
-          );
-          bloomPass.threshold = 0.82;
-          bloomPass.strength = 0.55;
-          bloomPass.radius = 0.7;
-          composer = new THREE.EffectComposer(renderer);
-          composer.addPass(renderScene);
-          composer.addPass(bloomPass);
-          console.log('Bloom включён (кинематографичный)');
-        } else {
-          console.warn('Bloom-скрипты не полностью загружены — работаем без постпроцессинга');
-          composer = null;
-        }
-      } catch (err) {
-        console.warn('Bloom не удалось инициализировать:', err);
-        composer = null;
-      }
-
-      // ===== КОНТРОЛЫ =====
+      // Контролы
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
@@ -467,7 +455,7 @@
       controls.zoomSpeed = 0.8;
       controls.addEventListener('change', () => { if (controls.enabled) playMoveSound(); });
 
-      // ===== ЗВЁЗДЫ (кинематографичные, многослойные) =====
+      // Звёзды (многослойные)
       function createStarField(count, sizeRange, spread, brightness = 1) {
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
@@ -480,11 +468,7 @@
           positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
           positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta) * 0.55;
           positions[i*3+2] = r * Math.cos(phi);
-
-          // Более естественные цвета звёзд (холодные + тёплые)
-          const hue = Math.random() < 0.75
-            ? 0.55 + Math.random() * 0.18   // сине-белые
-            : 0.08 + Math.random() * 0.08;  // тёплые
+          const hue = Math.random() < 0.75 ? 0.55 + Math.random() * 0.18 : 0.08 + Math.random() * 0.08;
           const sat = 0.25 + Math.random() * 0.45;
           const light = 0.55 + Math.random() * 0.4;
           const c = new THREE.Color().setHSL(hue, sat, light);
@@ -522,15 +506,14 @@
         points.userData = { sizes: sizes, baseSizes: sizes.slice() };
         return points;
       }
-      // Три слоя для глубины
-      const starField1 = createStarField(12000, [0.4, 1.6], 1100, 0.85); // дальние
+      const starField1 = createStarField(12000, [0.4, 1.6], 1100, 0.85);
       scene.add(starField1);
-      const starField2 = createStarField(4000, [1.2, 3.2], 650, 1.0);   // средние
+      const starField2 = createStarField(4000, [1.2, 3.2], 650, 1.0);
       scene.add(starField2);
-      const starField3 = createStarField(900, [2.8, 6.5], 380, 1.15);    // яркие близкие
+      const starField3 = createStarField(900, [2.8, 6.5], 380, 1.15);
       scene.add(starField3);
 
-      // ===== ТУМАННОСТИ =====
+      // Туманности
       function createNebula(color, size, pos, opacity=0.06) {
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 512;
@@ -555,7 +538,6 @@
         sprite.scale.set(size, size, 1);
         return sprite;
       }
-      // Более глубокие и мягкие туманности
       scene.add(createNebula('90,40,160', 320, {x:-140, y:50, z:-220}, 0.11));
       scene.add(createNebula('20,60,180', 380, {x:170, y:-70, z:-280}, 0.09));
       scene.add(createNebula('180,70,30', 240, {x:-90, y:-110, z:-170}, 0.07));
@@ -563,7 +545,7 @@
       scene.add(createNebula('140,50,100', 200, {x:40, y:-40, z:-320}, 0.06));
       scene.add(createNebula('50,30,120', 450, {x:-60, y:20, z:-380}, 0.05));
 
-      // ===== ЗЕМЛЯ =====
+      // Земля
       const loader = new THREE.TextureLoader();
       const earthGroup = new THREE.Group();
       earthGroup.position.set(0, -8, 0);
@@ -586,7 +568,6 @@
       const clouds = new THREE.Mesh(new THREE.SphereGeometry(4.06, 64, 64), cloudMat);
       clouds.userData.isEarth = true;
       earthGroup.add(clouds);
-      // Более красивая атмосфера
       const atmoMat = new THREE.MeshBasicMaterial({
         color: 0x6ea8ff, transparent: true, opacity: 0.28, side: THREE.BackSide, depthWrite: false
       });
@@ -602,7 +583,7 @@
       scene.add(earthGroup);
       const earthMeshes = [earth, clouds, atmo, clickTarget];
 
-      // ===== ПЛАНЕТЫ =====
+      // Планеты
       const planetData = [
         { name:'Меркурий', radius:0.3, color:0xaaaaaa, orbit:7, speed:0.015, tilt:0.1 },
         { name:'Венера', radius:0.45, color:0xe6b800, orbit:10, speed:0.01, tilt:0.15 },
@@ -643,28 +624,26 @@
         }
       });
 
-      // ===== ОСВЕЩЕНИЕ (кинематографичное) =====
+      // Освещение
       scene.add(new THREE.AmbientLight(0x070b14, 0.22));
       const sunLight = new THREE.DirectionalLight(0xfff0d8, 2.4);
       sunLight.position.set(32, 14, 38);
       scene.add(sunLight);
-      // Холодный rim light сзади
       const rimLight = new THREE.DirectionalLight(0x3a5a8a, 0.55);
       rimLight.position.set(-28, -8, -40);
       scene.add(rimLight);
-      // Лёгкий fill
       const fillLight = new THREE.DirectionalLight(0x1a2a4a, 0.25);
       fillLight.position.set(-15, 20, 10);
       scene.add(fillLight);
 
-      // ===== ЛЕТАЮЩИЙ ОБЪЕКТ =====
+      // Летающий объект
       flyer = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshBasicMaterial({ color:0xffffff }));
       flyer.visible = false;
       scene.add(flyer);
       flyerLight = new THREE.PointLight(0xffffff, 0, 80);
       scene.add(flyerLight);
 
-      // ===== СТАР-МЕШИ (кликабельные) =====
+      // Кликабельные звёзды
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
       function addClickableStar(pos, size, data) {
@@ -721,7 +700,7 @@
         }
       });
 
-      // ===== ОБРАБОТЧИК КЛИКОВ =====
+      // Обработчик кликов
       function onPointer(e) {
         if (isFlying) return;
         if (document.getElementById('card').classList.contains('show')) {
@@ -760,7 +739,7 @@
       renderer.domElement.addEventListener('click', onPointer);
       renderer.domElement.addEventListener('touchend', onPointer, { passive: true });
 
-      // ===== АНИМАЦИОННЫЙ ЦИКЛ =====
+      // Анимационный цикл
       let time = 0;
       function loop() {
         requestAnimationFrame(loop);
@@ -768,7 +747,6 @@
         earth.rotation.y += 0.0006;
         clouds.rotation.y += 0.0008;
 
-        // Мерцание звёзд
         if (starField1.material) {
           const sizes = starField1.geometry.attributes.size.array;
           for (let i=0; i<sizes.length; i++) {
@@ -789,15 +767,11 @@
         if (controls && controls.enabled) controls.update();
         else if (!isFlying && camera) camera.position.x = Math.sin(time * 0.12) * 0.8;
 
-        if (composer) {
-          composer.render();
-        } else if (renderer && scene && camera) {
-          renderer.render(scene, camera);
-        }
+        renderer.render(scene, camera);
       }
       loop();
 
-      // ===== РЕСАЙЗ =====
+      // Ресайз
       window.addEventListener('resize', () => {
         if (camera) {
           camera.aspect = innerWidth / innerHeight;
@@ -805,9 +779,6 @@
         }
         if (renderer) {
           renderer.setSize(innerWidth, innerHeight);
-        }
-        if (composer) {
-          composer.setSize(innerWidth, innerHeight);
         }
       });
 
@@ -902,7 +873,6 @@
     }
 
     function createBurst(position) {
-      // Два слоя частиц для эпичности
       function makeLayer(count, speedMul, sizeMul, life) {
         const geo = new THREE.BufferGeometry();
         const pos = new Float32Array(count * 3);
@@ -948,7 +918,7 @@
             p[i*3]   += vel[i].x * 0.38;
             p[i*3+1] += vel[i].y * 0.38;
             p[i*3+2] += vel[i].z * 0.38;
-            vel[i].multiplyScalar(0.985); // замедление
+            vel[i].multiplyScalar(0.985);
           }
           burst.geometry.attributes.position.needsUpdate = true;
           mat.opacity = Math.max(0, 1 - elapsed / life);
@@ -957,9 +927,9 @@
         }
         animateBurst();
       }
-      makeLayer(180, 1.0, 1.0, 3.2);   // основной взрыв
-      makeLayer(90,  1.6, 0.55, 2.4);  // быстрые искры
-      makeLayer(60,  0.55, 1.8, 4.0);  // медленное свечение
+      makeLayer(180, 1.0, 1.0, 3.2);
+      makeLayer(90,  1.6, 0.55, 2.4);
+      makeLayer(60,  0.55, 1.8, 4.0);
     }
 
     function launch(name, message, constellation, starData) {
@@ -977,16 +947,13 @@
       flyerLight.position.copy(flyer.position);
       flyerLight.distance = 120;
 
-      // Камера сначала медленно приближается к Земле
       gsap.to(camera.position, { z: 17, y: -2.8, duration: 3.6, ease: 'power2.inOut' });
       gsap.to(controls.target, { x: 0, y: -8, z: 0, duration: 3.6, ease: 'power2.inOut' });
 
       const tl = gsap.timeline({ onComplete: () => finish(name, message, constellation, target, starData) });
-      // Набор энергии
       tl.to(flyer.scale, { x: 2.2, y: 2.2, z: 2.2, duration: 2.8, ease: 'power2.out' }, 0.9);
       tl.to(flyerLight, { intensity: 4, duration: 2.5 }, 1.0);
       tl.to(flyer.position, { y: 7, duration: 3.5, ease: 'power2.inOut' }, 1.1);
-      // Полёт к точке
       tl.to(flyer.position, { x: target.x, y: target.y, z: target.z, duration: 9.5, ease: 'power3.in' }, 4.2);
       tl.to(camera.position, {
         x: target.x * 0.38,
@@ -1007,7 +974,6 @@
       screenFlash(0.98, 1.6);
       createBurst(pos);
 
-      // Ядро звезды
       finalStar = new THREE.Mesh(
         new THREE.SphereGeometry(0.55, 32, 32),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
@@ -1015,7 +981,6 @@
       finalStar.position.copy(pos);
       scene.add(finalStar);
 
-      // Основное свечение
       finalGlow = new THREE.Mesh(
         new THREE.SphereGeometry(2.2, 32, 32),
         new THREE.MeshBasicMaterial({ color: 0xfff5e0, transparent: true, opacity: 0.55, depthWrite: false })
@@ -1023,7 +988,6 @@
       finalGlow.position.copy(pos);
       scene.add(finalGlow);
 
-      // Внешнее голубое свечение
       const glow2 = new THREE.Mesh(
         new THREE.SphereGeometry(4.5, 32, 32),
         new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.22, depthWrite: false })
@@ -1031,7 +995,6 @@
       glow2.position.copy(pos);
       scene.add(glow2);
 
-      // Ещё один широкий ореол
       const glow3 = new THREE.Mesh(
         new THREE.SphereGeometry(8, 32, 32),
         new THREE.MeshBasicMaterial({ color: 0x6688cc, transparent: true, opacity: 0.08, depthWrite: false })
@@ -1043,7 +1006,6 @@
       light.position.copy(pos);
       scene.add(light);
 
-      // Анимация появления
       finalStar.scale.set(0.05, 0.05, 0.05);
       finalGlow.scale.set(0.05, 0.05, 0.05);
       glow2.scale.set(0.1, 0.1, 0.1);
@@ -1059,13 +1021,11 @@
       gsap.to(glow3, { opacity: 0.05, duration: 3.5, delay: 0.5 });
       gsap.to(light, { intensity: 12, duration: 2.5, delay: 0.5 });
 
-      // Пульсация
       gsap.to(finalStar.scale, {
         x: 1.45, y: 1.45, z: 1.45,
         duration: 3.5, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 2.8
       });
 
-      // Сильный shake камеры
       gsap.to(camera.position, {
         x: camera.position.x + (Math.random() - 0.5) * 3.5,
         y: camera.position.y + (Math.random() - 0.5) * 2.5,
@@ -1077,11 +1037,9 @@
 
       starMeshes.push({ data: starData, mesh: finalStar, glow: finalGlow });
       currentStarData = starData;
-      photoDataUrl = null; voiceDataUrl = null;
+      photoDataUrl = null;
       document.getElementById('photo-preview').style.display = 'none';
-      document.getElementById('voice-preview-wrap').style.display = 'none';
       document.getElementById('photo-input').value = '';
-      document.getElementById('voice-preview').src = '';
 
       controls.target.copy(pos);
       controls.enabled = true;
@@ -1102,13 +1060,19 @@
     function fillCard(star) {
       document.getElementById('cname').textContent = star.name;
       document.getElementById('cconst').textContent = star.constellation || '';
+
+      // Дополнительная информация: год + анонимность
+      let extra = '';
+      if (star.year) extra += ` • ${star.year}`;
+      if (star.anonymous) extra += ' • Анонимно';
+      document.getElementById('cextra').textContent = extra;
+
       let msg = star.message || 'Звезда зажжена';
       msg = msg.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
       document.getElementById('cmsg').innerHTML = msg;
       document.getElementById('cdate').textContent = new Date(star.createdAt || star.date).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
       document.getElementById('clikes').textContent = `${star.likes || 0} ❤️`;
       if (star.photo) { document.getElementById('card-photo').src = star.photo; document.getElementById('card-photo-wrap').style.display = 'block'; } else { document.getElementById('card-photo-wrap').style.display = 'none'; }
-      if (star.voice) { document.getElementById('card-voice').src = star.voice; document.getElementById('card-voice-wrap').style.display = 'block'; document.getElementById('card-voice-play').textContent = 'Слушать послание'; } else { document.getElementById('card-voice-wrap').style.display = 'none'; document.getElementById('card-voice').src = ''; }
       const reactions = star.reactions || {};
       const emojis = ['❤️','🙌','😢','🔥'];
       emojis.forEach(emoji => {
@@ -1124,18 +1088,10 @@
 
     function closeCard() {
       document.getElementById('card').classList.remove('show');
-      const a = document.getElementById('card-voice');
-      if (a && !a.paused) { a.pause(); document.getElementById('card-voice-play').textContent = 'Слушать послание'; }
       if (controls) controls.enabled = true;
     }
 
     document.getElementById('card-close').onclick = closeCard;
-    document.getElementById('card-voice-play').onclick = () => {
-      const a = document.getElementById('card-voice');
-      if (!a.src) return;
-      if (a.paused) { a.play(); document.getElementById('card-voice-play').textContent = 'Пауза'; } else { a.pause(); document.getElementById('card-voice-play').textContent = 'Слушать послание'; }
-    };
-    document.getElementById('card-voice').onended = () => { document.getElementById('card-voice-play').textContent = 'Слушать послание'; };
 
     // ============================================================
     // ФОРМА
@@ -1164,9 +1120,9 @@
     // ============================================================
     let introStep = 0;
     const introData = [
-      { title:'Omnium', text:'Зажги звезду в честь человека. Фото и голос можно добавить.' },
-      { title:'Космос', text:'Меню можно закрыть и свободно летать между звёздами.' },
-      { title:'Навсегда', text:'Тап по звезде — открыть карточку. Тап по Земле или ✦ — создать звезду.' }
+      { title: 'Omnium', text: 'Зажги звезду в честь человека. Можно указать год и остаться анонимным.' },
+      { title: 'Космос', text: 'Каждая звезда — это вечный символ. Ты можешь создать её для кого угодно.' },
+      { title: 'Навсегда', text: 'Тап по звезде — открыть карточку. Тап по Земле или ✦ — создать новую звезду.' }
     ];
     document.getElementById('inext').onclick = () => {
       initAudio();
@@ -1187,7 +1143,6 @@
       document.getElementById('s3').classList.toggle('on', introStep === 2);
       if (introStep === 2) document.getElementById('inext').textContent = 'Начать';
     };
-    // Безопасная проверка localStorage (в песочнице / Telegram WebView может быть заблокирован)
     let skipIntro = false;
     try { skipIntro = !!localStorage.getItem('omnium_v3'); } catch(e) { skipIntro = false; }
     if (skipIntro) {
@@ -1237,6 +1192,9 @@
         const reactStr = totalReactions > 0 ? Object.entries(reactions).filter(([k,v])=>v>0).map(([k,v])=>`${k}${v}`).join(' ') : '';
         let msgDisplay = star.message || 'Без послания';
         msgDisplay = msgDisplay.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+        let extra = '';
+        if (star.year) extra += ` • ${star.year}`;
+        if (star.anonymous) extra += ' • Анонимно';
         item.innerHTML = `
           <div class="star-item-row">
             <span class="star-item-name">${star.name}</span>
@@ -1246,7 +1204,7 @@
             </span>
           </div>
           <div class="star-item-row">
-            <span class="star-item-const">${star.constellation || ''}</span>
+            <span class="star-item-const">${star.constellation || ''}${extra}</span>
             <span class="star-item-meta">${new Date(star.createdAt || star.date).toLocaleDateString('ru-RU')}</span>
           </div>
           <div class="star-item-row"><span class="star-item-msg">${msgDisplay}</span></div>
@@ -1353,6 +1311,8 @@
       closeCard();
       document.getElementById('name').value = '';
       document.getElementById('msg').value = '';
+      document.getElementById('year').value = '';
+      document.getElementById('anonymous').checked = false;
       flyToEarthAndOpenForm();
       currentStarData = null;
       stopAmbient();
@@ -1362,11 +1322,16 @@
     document.getElementById('create').onclick = async () => {
       const name = document.getElementById('name').value.trim();
       const msg = document.getElementById('msg').value.trim();
+      const year = parseInt(document.getElementById('year').value) || null;
+      const anonymous = document.getElementById('anonymous').checked;
       if (!name) { document.getElementById('name').style.borderColor = 'rgba(220,80,80,0.5)'; return; }
-      if (isRecording) stopRecording();
       initAudio();
+
       const starData = {
-        name, message:msg,
+        name,
+        message: msg,
+        year,
+        anonymous,
         constellation: selectedConst.name,
         constellationId: selectedConst.id,
         position: {
@@ -1375,7 +1340,6 @@
           z: selectedConst.center.z + (Math.random()-0.5)*16
         },
         photo: photoDataUrl || null,
-        voice: voiceDataUrl || null,
         creatorId: userTelegramId || 'anon',
         creatorUsername: userUsername,
       };
@@ -1389,10 +1353,18 @@
         const stats = await getStats();
         document.getElementById('stat-stars').textContent = stats.totalStars || 0;
         document.getElementById('stat-likes').textContent = stats.totalLikes || 0;
+        // Очищаем форму
+        document.getElementById('name').value = '';
+        document.getElementById('msg').value = '';
+        document.getElementById('year').value = '';
+        document.getElementById('anonymous').checked = false;
+        photoDataUrl = null;
+        document.getElementById('photo-preview').style.display = 'none';
+        document.getElementById('photo-input').value = '';
       } catch(err) { showToast('Ошибка: ' + err.message); }
     };
 
-    console.log('🌟 Omnium с кинематографичным космосом загружен!');
+    console.log('🌟 Omnium с годом и анонимностью загружен!');
   </script>
 </body>
 </html>
