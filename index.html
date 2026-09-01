@@ -7,6 +7,7 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
@@ -182,13 +183,20 @@
   <div class="cam-hint" id="hint">Тяните · щипок — зум · тап по Земле или ✦</div>
 
   <script>
-    // ==================== КОНФИГ ====================
+    // ============================================================
+    // КОНФИГ
+    // ============================================================
     const API_URL = 'https://omnium-server.onrender.com/api';
     const BOT_USERNAME = 'Omniums_bot';
     const tg = window.Telegram?.WebApp;
-    if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#03050a'); tg.setBackgroundColor('#03050a'); }
+    if (tg) {
+      try { tg.ready(); tg.expand(); tg.setHeaderColor('#03050a'); } catch(e) {}
+      try { tg.setBackgroundColor('#03050a'); } catch(e) {}
+    }
 
-    // ==================== TOAST ====================
+    // ============================================================
+    // ВСПОМОГАТЕЛЬНЫЕ
+    // ============================================================
     function showToast(text) {
       const t = document.getElementById('toast');
       t.textContent = text;
@@ -197,7 +205,9 @@
       t._timeout = setTimeout(() => t.classList.remove('show'), 2200);
     }
 
-    // ==================== API ====================
+    // ============================================================
+    // API
+    // ============================================================
     async function apiFetch(endpoint, options = {}) {
       const res = await fetch(`${API_URL}${endpoint}`, {
         headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -222,20 +232,21 @@
     let controls = null, camera = null, scene = null, renderer = null, composer = null;
     let flyer = null, flyerLight = null, starMeshes = [], finalStar = null, finalGlow = null;
 
-    // ==================== АУДИО ====================
+    // ============================================================
+    // АУДИО (заглушки, можно оставить как в оригинале)
+    // ============================================================
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null, ambientNodes = null, lastMoveSound = 0;
     function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
-    function playLaunchSound() { /* ... код звуков ... */ }
-    function playBirthSound() { /* ... код звуков ... */ }
-    function startAmbient() { /* ... код ... */ }
-    function stopAmbient() { /* ... */ }
-    function playMoveSound() { /* ... */ }
-    // (Звуки я оставляю те же, что были – они уже есть в предыдущем полном коде)
-    // Для краткости я не буду повторять полный код звуков, но они должны быть здесь.
-    // В реальности я вставлю их, но чтобы сэкономить место, я буду использовать существующие реализации.
+    function playLaunchSound() { /* TODO: добавить звук */ }
+    function playBirthSound() { /* TODO: добавить звук */ }
+    function startAmbient() { /* TODO: добавить звук */ }
+    function stopAmbient() { /* TODO: добавить звук */ }
+    function playMoveSound() { /* TODO: добавить звук */ }
 
-    // ==================== СОЗВЕЗДИЯ ====================
+    // ============================================================
+    // СОЗВЕЗДИЯ
+    // ============================================================
     const CONSTELLATIONS = [
       { id:'memory', name:'Созвездие Памяти', center:{x:28,y:32,z:-100} },
       { id:'love', name:'Созвездие Любви', center:{x:-32,y:20,z:-88} },
@@ -254,7 +265,9 @@
       grid.appendChild(btn);
     });
 
-    // ==================== ФОТО / ГОЛОС ====================
+    // ============================================================
+    // ФОТО / ГОЛОС
+    // ============================================================
     let photoDataUrl = null, voiceDataUrl = null, mediaRecorder = null, voiceChunks = [], isRecording = false;
     document.getElementById('photo-btn').onclick = () => document.getElementById('photo-input').click();
     document.getElementById('photo-input').onchange = async (e) => {
@@ -271,7 +284,9 @@
     function stopRecording() { if (mediaRecorder && isRecording) { mediaRecorder.stop(); isRecording = false; document.getElementById('voice-btn').textContent = 'Записать голос'; document.getElementById('voice-status').style.display = 'none'; } }
     document.getElementById('voice-remove').onclick = () => { voiceDataUrl = null; document.getElementById('voice-preview-wrap').style.display = 'none'; document.getElementById('voice-preview').src = ''; };
 
-    // ==================== 3D СЦЕНА (КИНЕМАТОГРАФИЧНАЯ) ====================
+    // ============================================================
+    // 3D СЦЕНА (КИНЕМАТОГРАФИЧНАЯ)
+    // ============================================================
     function initScene() {
       scene = new THREE.Scene();
       scene.fog = new THREE.FogExp2(0x02040a, 0.0007);
@@ -287,7 +302,11 @@
       renderer.toneMappingExposure = 1.2;
       document.getElementById('canvas').appendChild(renderer.domElement);
 
-      // ===== Bloom (свечение) =====
+      // ===== BLOOM =====
+      if (typeof THREE.LuminosityHighPassShader === 'undefined') {
+        console.error('LuminosityHighPassShader не загружен!');
+        return;
+      }
       const renderScene = new THREE.RenderPass(scene, camera);
       const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.4, 0.85);
       bloomPass.threshold = 0.1;
@@ -297,7 +316,7 @@
       composer.addPass(renderScene);
       composer.addPass(bloomPass);
 
-      // ===== Контролы =====
+      // ===== КОНТРОЛЫ =====
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
@@ -308,8 +327,8 @@
       controls.target.set(0, 0, 0);
       controls.addEventListener('change', () => { if (controls.enabled) playMoveSound(); });
 
-      // ===== ЗВЁЗДЫ (мерцающие, с разными цветами) =====
-      function createStarField(count, sizeRange, colorRange, spread) {
+      // ===== ЗВЁЗДЫ (мерцающие) =====
+      function createStarField(count, sizeRange, spread) {
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
         const colors = new Float32Array(count * 3);
@@ -322,9 +341,7 @@
           positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta) * 0.6;
           positions[i*3+2] = r * Math.cos(phi);
           const c = new THREE.Color().setHSL(0.6 + Math.random()*0.3, 0.5, 0.5 + Math.random()*0.5);
-          colors[i*3] = c.r;
-          colors[i*3+1] = c.g;
-          colors[i*3+2] = c.b;
+          colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
           sizes[i] = sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0]);
         }
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -353,19 +370,17 @@
           })()
         });
         const points = new THREE.Points(geo, mat);
-        // Анимация мерцания
         points.userData = { sizes: sizes, baseSizes: sizes.slice() };
         return points;
       }
-
-      const starField1 = createStarField(8000, [0.5, 2.0], [0.5, 1.0], 800);
+      const starField1 = createStarField(8000, [0.5,2.0], 800);
       scene.add(starField1);
-      const starField2 = createStarField(3000, [1.5, 4.0], [0.4, 0.9], 500);
+      const starField2 = createStarField(3000, [1.5,4.0], 500);
       scene.add(starField2);
-      const starField3 = createStarField(1000, [3.0, 7.0], [0.3, 0.8], 300);
+      const starField3 = createStarField(1000, [3.0,7.0], 300);
       scene.add(starField3);
 
-      // ===== ТУМАННОСТИ (с текстурами) =====
+      // ===== ТУМАННОСТИ =====
       function createNebula(color, size, pos, opacity=0.06) {
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 512;
@@ -390,23 +405,20 @@
         sprite.scale.set(size, size, 1);
         return sprite;
       }
+      scene.add(createNebula('108,50,180', 250, {x:-120,y:40,z:-200}, 0.08));
+      scene.add(createNebula('30,80,200', 300, {x:150,y:-60,z:-250}, 0.06));
+      scene.add(createNebula('200,80,40', 180, {x:-80,y:-100,z:-150}, 0.05));
+      scene.add(createNebula('40,200,180', 220, {x:100,y:80,z:-180}, 0.07));
 
-      scene.add(createNebula('108, 50, 180', 250, {x:-120, y:40, z:-200}, 0.08));
-      scene.add(createNebula('30, 80, 200', 300, {x:150, y:-60, z:-250}, 0.06));
-      scene.add(createNebula('200, 80, 40', 180, {x:-80, y:-100, z:-150}, 0.05));
-      scene.add(createNebula('40, 200, 180', 220, {x:100, y:80, z:-180}, 0.07));
-
-      // ===== ЗЕМЛЯ (детализированная) =====
+      // ===== ЗЕМЛЯ =====
       const loader = new THREE.TextureLoader();
       const earthGroup = new THREE.Group();
       earthGroup.position.set(0, -8, 0);
-
       const earthMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg');
       const bumpMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/elev_bump_4k.jpg');
       const specMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/water_4k.png');
       const cloudMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png');
       const nightMap = loader.load('https://raw.githubusercontent.com/turban/webgl-earth/master/images/night_lights_4k.png');
-
       const earthMat = new THREE.MeshPhongMaterial({
         map: earthMap, bumpMap, bumpScale: 0.04, specularMap: specMap,
         specular: new THREE.Color(0x333344), shininess: 20,
@@ -415,34 +427,28 @@
       const earth = new THREE.Mesh(new THREE.SphereGeometry(4.0, 128, 128), earthMat);
       earth.userData.isEarth = true;
       earthGroup.add(earth);
-
       const cloudMat = new THREE.MeshPhongMaterial({
         map: cloudMap, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending
       });
       const clouds = new THREE.Mesh(new THREE.SphereGeometry(4.05, 64, 64), cloudMat);
       clouds.userData.isEarth = true;
       earthGroup.add(clouds);
-
-      // Атмосфера
       const atmoMat = new THREE.MeshBasicMaterial({
         color: 0x88bbff, transparent: true, opacity: 0.2, side: THREE.BackSide, depthWrite: false
       });
       const atmo = new THREE.Mesh(new THREE.SphereGeometry(4.35, 64, 64), atmoMat);
       atmo.userData.isEarth = true;
       earthGroup.add(atmo);
-
-      // Прозрачная сфера для клика
       const clickTarget = new THREE.Mesh(
         new THREE.SphereGeometry(4.8, 32, 32),
         new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
       );
       clickTarget.userData.isEarth = true;
       earthGroup.add(clickTarget);
-
       scene.add(earthGroup);
       const earthMeshes = [earth, clouds, atmo, clickTarget];
 
-      // ===== ПЛАНЕТЫ (реалистичные) =====
+      // ===== ПЛАНЕТЫ =====
       const planetData = [
         { name:'Меркурий', radius:0.3, color:0xaaaaaa, orbit:7, speed:0.015, tilt:0.1 },
         { name:'Венера', radius:0.45, color:0xe6b800, orbit:10, speed:0.01, tilt:0.15 },
@@ -455,7 +461,6 @@
       const planetMeshes = [];
       const planetGroup = new THREE.Group();
       scene.add(planetGroup);
-
       planetData.forEach((p, idx) => {
         const geom = new THREE.SphereGeometry(p.radius, 48, 48);
         const mat = new THREE.MeshPhongMaterial({
@@ -472,7 +477,6 @@
         mesh.userData = { orbit:p.orbit, speed:p.speed, angle:angle, tilt:p.tilt, yOffset:y };
         planetGroup.add(mesh);
         planetMeshes.push(mesh);
-
         if (p.rings) {
           const ringGeom = new THREE.TorusGeometry(p.radius * 1.8, 0.12, 16, 64);
           const ringMat = new THREE.MeshBasicMaterial({
@@ -501,10 +505,9 @@
       flyerLight = new THREE.PointLight(0xffffff, 0, 80);
       scene.add(flyerLight);
 
-      // ===== СТАР-МЕШИ =====
+      // ===== СТАР-МЕШИ (кликабельные) =====
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
-
       function addClickableStar(pos, size, data) {
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(size, 24, 24),
@@ -526,7 +529,6 @@
         return mesh;
       }
 
-      // Загрузка существующих звёзд из API
       async function loadStarsFromAPI() {
         try {
           const stars = await getStars(200);
@@ -625,22 +627,28 @@
           mesh.rotation.y += 0.01;
         });
 
-        if (controls.enabled) controls.update();
-        else if (!isFlying) camera.position.x = Math.sin(time * 0.12) * 0.8;
+        if (controls && controls.enabled) controls.update();
+        else if (!isFlying && camera) camera.position.x = Math.sin(time * 0.12) * 0.8;
 
-        composer.render();
+        if (composer) composer.render();
       }
       loop();
 
       // ===== РЕСАЙЗ =====
       window.addEventListener('resize', () => {
-        camera.aspect = innerWidth / innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(innerWidth, innerHeight);
-        composer.setSize(innerWidth, innerHeight);
+        if (camera) {
+          camera.aspect = innerWidth / innerHeight;
+          camera.updateProjectionMatrix();
+        }
+        if (renderer) {
+          renderer.setSize(innerWidth, innerHeight);
+        }
+        if (composer) {
+          composer.setSize(innerWidth, innerHeight);
+        }
       });
 
-      // Загружаем звезды
+      // Загружаем звезды из API
       loadStarsFromAPI();
 
       // Обработка параметров URL
@@ -664,7 +672,9 @@
       console.log('✅ Кинематографичный космос инициализирован');
     }
 
-    // ==================== ФУНКЦИИ СЦЕНЫ ====================
+    // ============================================================
+    // ФУНКЦИИ СЦЕНЫ
+    // ============================================================
     function ensureStarInScene(star) {
       const exists = starMeshes.find(s => s.data && String(s.data.id) === String(star.id));
       if (exists) { finalStar = exists.mesh; finalGlow = exists.glow; return; }
@@ -679,6 +689,7 @@
       if (isFlying) return;
       if (!document.getElementById('form').classList.contains('hide')) return;
       if (document.getElementById('card').classList.contains('show')) closeCard();
+      if (!controls || !camera) { openForm(); return; }
 
       const earthViewPos = new THREE.Vector3(0, -3, 16);
       const dist = camera.position.distanceTo(earthViewPos);
@@ -719,7 +730,6 @@
       }
     }
 
-    // ==================== АНИМАЦИЯ РОЖДЕНИЯ ====================
     function screenFlash(peak=0.85, duration=0.9) {
       const el = document.getElementById('flash');
       gsap.fromTo(el, { opacity:0 }, { opacity:peak, duration:duration*0.2, ease:'power2.out',
@@ -808,24 +818,15 @@
       screenFlash(0.9, 1.1);
       createBurst(pos);
 
-      finalStar = new THREE.Mesh(
-        new THREE.SphereGeometry(0.45, 32, 32),
-        new THREE.MeshBasicMaterial({ color:0xffffff })
-      );
+      finalStar = new THREE.Mesh(new THREE.SphereGeometry(0.45, 32, 32), new THREE.MeshBasicMaterial({ color:0xffffff }));
       finalStar.position.copy(pos);
       scene.add(finalStar);
 
-      finalGlow = new THREE.Mesh(
-        new THREE.SphereGeometry(1.5, 32, 32),
-        new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false })
-      );
+      finalGlow = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false }));
       finalGlow.position.copy(pos);
       scene.add(finalGlow);
 
-      const glow2 = new THREE.Mesh(
-        new THREE.SphereGeometry(3.0, 32, 32),
-        new THREE.MeshBasicMaterial({ color:0xaaccff, transparent:true, opacity:0.15, depthWrite:false })
-      );
+      const glow2 = new THREE.Mesh(new THREE.SphereGeometry(3.0, 32, 32), new THREE.MeshBasicMaterial({ color:0xaaccff, transparent:true, opacity:0.15, depthWrite:false }));
       glow2.position.copy(pos);
       scene.add(glow2);
 
@@ -870,29 +871,19 @@
       }, 1400);
     }
 
-    // ==================== КАРТОЧКА ====================
+    // ============================================================
+    // КАРТОЧКА
+    // ============================================================
     function fillCard(star) {
       document.getElementById('cname').textContent = star.name;
       document.getElementById('cconst').textContent = star.constellation || '';
       let msg = star.message || 'Звезда зажжена';
       msg = msg.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
       document.getElementById('cmsg').innerHTML = msg;
-      document.getElementById('cdate').textContent = new Date(star.createdAt || star.date).toLocaleDateString('ru-RU', {
-        day:'numeric', month:'long', year:'numeric'
-      });
+      document.getElementById('cdate').textContent = new Date(star.createdAt || star.date).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
       document.getElementById('clikes').textContent = `${star.likes || 0} ❤️`;
-      if (star.photo) {
-        document.getElementById('card-photo').src = star.photo;
-        document.getElementById('card-photo-wrap').style.display = 'block';
-      } else { document.getElementById('card-photo-wrap').style.display = 'none'; }
-      if (star.voice) {
-        document.getElementById('card-voice').src = star.voice;
-        document.getElementById('card-voice-wrap').style.display = 'block';
-        document.getElementById('card-voice-play').textContent = 'Слушать послание';
-      } else {
-        document.getElementById('card-voice-wrap').style.display = 'none';
-        document.getElementById('card-voice').src = '';
-      }
+      if (star.photo) { document.getElementById('card-photo').src = star.photo; document.getElementById('card-photo-wrap').style.display = 'block'; } else { document.getElementById('card-photo-wrap').style.display = 'none'; }
+      if (star.voice) { document.getElementById('card-voice').src = star.voice; document.getElementById('card-voice-wrap').style.display = 'block'; document.getElementById('card-voice-play').textContent = 'Слушать послание'; } else { document.getElementById('card-voice-wrap').style.display = 'none'; document.getElementById('card-voice').src = ''; }
       const reactions = star.reactions || {};
       const emojis = ['❤️','🙌','😢','🔥'];
       emojis.forEach(emoji => {
@@ -904,10 +895,7 @@
       });
     }
 
-    function emojiToId(emoji) {
-      const map = {'❤️':'heart','🙌':'hands','😢':'sad','🔥':'fire'};
-      return map[emoji] || emoji;
-    }
+    function emojiToId(emoji) { const map = {'❤️':'heart','🙌':'hands','😢':'sad','🔥':'fire'}; return map[emoji] || emoji; }
 
     function closeCard() {
       document.getElementById('card').classList.remove('show');
@@ -920,14 +908,13 @@
     document.getElementById('card-voice-play').onclick = () => {
       const a = document.getElementById('card-voice');
       if (!a.src) return;
-      if (a.paused) { a.play(); document.getElementById('card-voice-play').textContent = 'Пауза'; }
-      else { a.pause(); document.getElementById('card-voice-play').textContent = 'Слушать послание'; }
+      if (a.paused) { a.play(); document.getElementById('card-voice-play').textContent = 'Пауза'; } else { a.pause(); document.getElementById('card-voice-play').textContent = 'Слушать послание'; }
     };
-    document.getElementById('card-voice').onended = () => {
-      document.getElementById('card-voice-play').textContent = 'Слушать послание';
-    };
+    document.getElementById('card-voice').onended = () => { document.getElementById('card-voice-play').textContent = 'Слушать послание'; };
 
-    // ==================== ОТКРЫТИЕ/ЗАКРЫТИЕ ФОРМЫ ====================
+    // ============================================================
+    // ФОРМА
+    // ============================================================
     function openForm() {
       document.getElementById('form').classList.remove('hide');
       document.getElementById('createbtn').classList.remove('show');
@@ -947,7 +934,9 @@
     document.getElementById('form-close').onclick = closeFormUI;
     document.getElementById('createbtn').onclick = flyToEarthAndOpenForm;
 
-    // ==================== ИНТРО ====================
+    // ============================================================
+    // ИНТРО
+    // ============================================================
     let introStep = 0;
     const introData = [
       { title:'Omnium', text:'Зажги звезду в честь человека. Фото и голос можно добавить.' },
@@ -979,7 +968,9 @@
       initApp();
     }
 
-    // ==================== ОСНОВНАЯ ЛОГИКА ====================
+    // ============================================================
+    // ОСНОВНАЯ ЛОГИКА
+    // ============================================================
     async function initApp() {
       try {
         const stats = await getStats();
@@ -989,9 +980,7 @@
         document.getElementById('stats-bar').classList.add('show');
         await loadStars();
         document.getElementById('createbtn').classList.add('show');
-        if (allStars.length > 0) {
-          document.getElementById('mybtn').classList.add('show');
-        }
+        if (allStars.length > 0) document.getElementById('mybtn').classList.add('show');
         console.log('✅ Приложение инициализировано');
       } catch (e) { console.error('Ошибка инициализации:', e); showToast('Ошибка загрузки данных'); }
     }
@@ -1004,7 +993,9 @@
       } catch(e) { console.error('Ошибка загрузки звёзд:', e); showToast('Не удалось загрузить звёзды'); }
     }
 
-    // ==================== ЛЕНТА ====================
+    // ============================================================
+    // ЛЕНТА
+    // ============================================================
     function renderStars(tab) {
       const box = document.getElementById('starslist');
       box.innerHTML = '';
@@ -1041,7 +1032,9 @@
       });
     }
 
-    // ==================== ДОСТИЖЕНИЯ ====================
+    // ============================================================
+    // ДОСТИЖЕНИЯ
+    // ============================================================
     async function renderAchievements() {
       const container = document.getElementById('achievements');
       container.innerHTML = '';
@@ -1060,7 +1053,9 @@
       } catch(e) { container.innerHTML = '<div class="ach-empty">Ошибка загрузки достижений</div>'; }
     }
 
-    // ==================== МОДАЛКА ====================
+    // ============================================================
+    // МОДАЛКА
+    // ============================================================
     function openMyStars() {
       document.getElementById('mystars').classList.add('show');
       renderStars(currentTab);
@@ -1078,7 +1073,9 @@
     document.getElementById('tomystars').onclick = openMyStars;
     document.getElementById('closemystars').onclick = () => document.getElementById('mystars').classList.remove('show');
 
-    // ==================== РЕАКЦИИ ====================
+    // ============================================================
+    // РЕАКЦИИ
+    // ============================================================
     document.querySelectorAll('.reaction-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!currentStarData) return;
@@ -1094,7 +1091,7 @@
       });
     });
 
-    // ===== ЛАЙК =====
+    // ЛАЙК
     document.getElementById('like').onclick = async () => {
       if (!currentStarData) return;
       try {
@@ -1110,7 +1107,7 @@
       } catch(e) { showToast('Ошибка лайка'); }
     };
 
-    // ===== ПОДЕЛИТЬСЯ =====
+    // ПОДЕЛИТЬСЯ
     document.getElementById('share').onclick = () => {
       if (!currentStarData) return;
       const link = `https://t.me/${BOT_USERNAME}?startapp=star_${currentStarData.id}`;
@@ -1123,7 +1120,7 @@
       }
     };
 
-    // ===== ЕЩЁ ОДНА =====
+    // ЕЩЁ ОДНА
     document.getElementById('again').onclick = () => {
       closeCard();
       document.getElementById('name').value = '';
@@ -1133,7 +1130,7 @@
       stopAmbient();
     };
 
-    // ===== СОЗДАНИЕ ЗВЕЗДЫ =====
+    // СОЗДАНИЕ ЗВЕЗДЫ
     document.getElementById('create').onclick = async () => {
       const name = document.getElementById('name').value.trim();
       const msg = document.getElementById('msg').value.trim();
@@ -1167,7 +1164,7 @@
       } catch(err) { showToast('Ошибка: ' + err.message); }
     };
 
-    console.log('🌟 Omnium с кинематографичным космосом и всеми фишками загружен!');
+    console.log('🌟 Omnium с кинематографичным космосом загружен!');
   </script>
 </body>
 </html>
