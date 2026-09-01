@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <style>
-    /* ===== КИНЕМАТОГРАФИЧНЫЙ СТИЛЬ (ОТ GROK) ===== */
+    /* ===== КИНЕМАТОГРАФИЧНЫЙ СТИЛЬ ===== */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     :root { --bg: #03050a; --accent: #c4b18a; --text: rgba(255,255,255,0.88); --muted: rgba(255,255,255,0.38); --line: rgba(255,255,255,0.07); }
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -193,12 +193,13 @@
       <button class="reaction-btn" data-emoji="🔥">🔥 <span id="r-fire">0</span></button>
     </div>
     <div class="card-row">
-      <button class="btn" id="share">Поделиться</button>
-      <button class="btn secondary" id="like">Подсветить</button>
+      <button class="btn" id="shareInsta">📸 Для Instagram</button>
+      <button class="btn" id="share">🔗 Поделиться</button>
     </div>
     <div class="card-row">
+      <button class="btn secondary" id="like">✨ Подсветить</button>
       <button class="btn secondary" id="tomystars">Мои звёзды</button>
-      <button class="btn secondary" id="again">Ещё одна</button>
+      <button class="btn secondary" id="again">🌟 Ещё одна</button>
     </div>
   </div>
 
@@ -218,8 +219,8 @@
     // ============================================================
     // КОНФИГ
     // ============================================================
-    const API_URL = 'https://omnium-server.onrender.com/api'; // <-- замени на свой
-    const BOT_USERNAME = 'Omniums_bot'; // <-- замени на своего бота
+    const API_URL = 'https://omnium-server.onrender.com/api'; // ЗАМЕНИ НА СВОЙ
+    const BOT_USERNAME = 'Omniums_bot'; // ЗАМЕНИ НА СВОЕГО БОТА
     const tg = window.Telegram?.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); tg.setHeaderColor('#03050a'); } catch(e) {}
@@ -265,7 +266,7 @@
     let flyer = null, flyerLight = null, starMeshes = [], finalStar = null, finalGlow = null;
 
     // ============================================================
-    // ЗВУКИ (от Grok, полные)
+    // ЗВУКИ
     // ============================================================
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null, ambientNodes = null, lastMoveSound = 0, masterGain = null;
@@ -455,7 +456,7 @@
       controls.zoomSpeed = 0.8;
       controls.addEventListener('change', () => { if (controls.enabled) playMoveSound(); });
 
-      // Звёзды (многослойные)
+      // Звёзды
       function createStarField(count, sizeRange, spread, brightness = 1) {
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
@@ -1055,13 +1056,112 @@
     }
 
     // ============================================================
+    // ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ДЛЯ INSTAGRAM
+    // ============================================================
+    function generateInstagramImage(star) {
+      const canvas = document.createElement('canvas');
+      const w = 1080, h = 1080;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      // === ФОН ===
+      const grad = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w * 0.7);
+      grad.addColorStop(0, '#0b1a30');
+      grad.addColorStop(0.5, '#060d1a');
+      grad.addColorStop(1, '#020408');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // === ЗВЁЗДЫ ===
+      for (let i = 0; i < 200; i++) {
+        const x = Math.random() * w;
+        const y = Math.random() * h;
+        const r = 1 + Math.random() * 2.5;
+        const alpha = 0.2 + Math.random() * 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fill();
+      }
+
+      // === БОЛЬШАЯ СТАР-ГЛОУ ===
+      const glow = ctx.createRadialGradient(w/2, h/2 - 40, 0, w/2, h/2 - 40, w * 0.35);
+      glow.addColorStop(0, 'rgba(255,220,160,0.25)');
+      glow.addColorStop(0.5, 'rgba(255,200,100,0.08)');
+      glow.addColorStop(1, 'rgba(255,200,100,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(w/2, h/2 - 40, w * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+
+      // === ЦЕНТРАЛЬНАЯ ЗВЕЗДА (символ) ===
+      const starX = w/2, starY = h/2 - 60;
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 40;
+      ctx.fillStyle = '#fff';
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const len = 40 + 15 * Math.sin(i * 2.3);
+        ctx.beginPath();
+        ctx.moveTo(starX, starY);
+        ctx.lineTo(starX + len * Math.cos(angle), starY + len * Math.sin(angle));
+        ctx.lineTo(starX + 12 * Math.cos(angle + 0.3), starY + 12 * Math.sin(angle + 0.3));
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 30;
+      ctx.beginPath();
+      ctx.arc(starX, starY, 16, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // === ИМЯ ===
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 72px Inter, system-ui, sans-serif';
+      ctx.fillText(star.name, w/2, starY + 130);
+
+      // === СОЗВЕЗДИЕ ===
+      ctx.fillStyle = '#c4b18a';
+      ctx.font = '36px Inter, system-ui, sans-serif';
+      ctx.shadowBlur = 10;
+      ctx.fillText(star.constellation || '✨', w/2, starY + 200);
+
+      // === ГОД (если есть) ===
+      if (star.year) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '32px Inter, system-ui, sans-serif';
+        ctx.fillText(star.year, w/2, starY + 260);
+      }
+
+      // === ЛОГОТИП ВНИЗУ ===
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(196,177,138,0.2)';
+      ctx.font = '22px Inter, system-ui, sans-serif';
+      ctx.fillText('✦ Omnium — вечная галактика', w/2, h - 60);
+
+      // === ПОДПИСЬ (короткая) ===
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '18px Inter, system-ui, sans-serif';
+      ctx.fillText('@' + BOT_USERNAME, w/2, h - 28);
+
+      return canvas.toDataURL('image/png');
+    }
+
+    // ============================================================
     // КАРТОЧКА
     // ============================================================
     function fillCard(star) {
       document.getElementById('cname').textContent = star.name;
       document.getElementById('cconst').textContent = star.constellation || '';
 
-      // Дополнительная информация: год + анонимность
       let extra = '';
       if (star.year) extra += ` • ${star.year}`;
       if (star.anonymous) extra += ' • Анонимно';
@@ -1092,6 +1192,32 @@
     }
 
     document.getElementById('card-close').onclick = closeCard;
+
+    // ===== КНОПКА ДЛЯ INSTAGRAM =====
+    document.getElementById('shareInsta').onclick = () => {
+      if (!currentStarData) return;
+      const dataUrl = generateInstagramImage(currentStarData);
+      const link = document.createElement('a');
+      link.download = `star_${currentStarData.name}_omnium.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📸 Изображение скачано! Выложи в Instagram.');
+    };
+
+    // ===== КНОПКА ПОДЕЛИТЬСЯ (ссылка) =====
+    document.getElementById('share').onclick = () => {
+      if (!currentStarData) return;
+      const link = `https://t.me/${BOT_USERNAME}?startapp=star_${currentStarData.id}`;
+      const text = `Звезда в честь ${currentStarData.name} · ${currentStarData.constellation}`;
+      if (tg) {
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+      } else {
+        navigator.clipboard?.writeText(link);
+        showToast('🔗 Ссылка скопирована');
+      }
+    };
 
     // ============================================================
     // ФОРМА
@@ -1293,19 +1419,6 @@
       } catch(e) { showToast('Ошибка лайка'); }
     };
 
-    // ПОДЕЛИТЬСЯ
-    document.getElementById('share').onclick = () => {
-      if (!currentStarData) return;
-      const link = `https://t.me/${BOT_USERNAME}?startapp=star_${currentStarData.id}`;
-      const text = `Звезда в честь ${currentStarData.name} · ${currentStarData.constellation}`;
-      if (tg) {
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
-      } else {
-        navigator.clipboard?.writeText(link);
-        showToast('Ссылка скопирована');
-      }
-    };
-
     // ЕЩЁ ОДНА
     document.getElementById('again').onclick = () => {
       closeCard();
@@ -1353,7 +1466,6 @@
         const stats = await getStats();
         document.getElementById('stat-stars').textContent = stats.totalStars || 0;
         document.getElementById('stat-likes').textContent = stats.totalLikes || 0;
-        // Очищаем форму
         document.getElementById('name').value = '';
         document.getElementById('msg').value = '';
         document.getElementById('year').value = '';
@@ -1364,7 +1476,7 @@
       } catch(err) { showToast('Ошибка: ' + err.message); }
     };
 
-    console.log('🌟 Omnium с годом и анонимностью загружен!');
+    console.log('🌟 Omnium с генерацией для Instagram загружен!');
   </script>
 </body>
 </html>
